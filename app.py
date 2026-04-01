@@ -4,17 +4,25 @@ from email.message import EmailMessage
 from urllib.request import urlopen
 from urllib.error import URLError, HTTPError
 from socket import timeout
+import yaml
+from dotenv import load_dotenv
 
-URL_TO_CHECK = "https://example.com"
+load_dotenv()
+
+with open("config.yaml", "r") as f:
+    data = yaml.safe_load(f)
+
+EMAIL_FROM = data["FROM_EMAIL"]
+EMAILS_TO = data["TO_EMAIL"]
+
+URL_TO_CHECK = "https://s3.minikubesgh.dpdns.org/"
 TIMEOUT_SECONDS = 10
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-EMAIL_FROM = SMTP_USERNAME
-EMAIL_TO = os.getenv("EMAIL_TO")
+
 
 
 def check_url(url: str, timeout_seconds: int = 10) -> bool:
@@ -25,26 +33,28 @@ def check_url(url: str, timeout_seconds: int = 10) -> bool:
         return False
 
 
-def send_email(subject: str, body: str):
+def send_email(subject: str, body: str, email_to: str):
     msg = EmailMessage()
     msg["From"] = EMAIL_FROM
-    msg["To"] = EMAIL_TO
+    msg["To"] = email_to
     msg["Subject"] = subject
     msg.set_content(body)
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
         server.ehlo()
         server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.login(EMAIL_FROM, SMTP_PASSWORD)
         server.send_message(msg)
 
 
 def main():
     if not check_url(URL_TO_CHECK, TIMEOUT_SECONDS):
-        send_email(
-            subject=f"ALERT: URL down - {URL_TO_CHECK}",
-            body=f"The URL {URL_TO_CHECK} is not reachable right now.",
-        )
+        for email_to in EMAILS_TO:
+            send_email(
+                subject=f"ALERT: URL down - {URL_TO_CHECK}",
+                body=f"The URL {URL_TO_CHECK} is not reachable right now.",
+                email_to = email_to
+            )
         print("Alert email sent.")
     else:
         print("URL is reachable.")
